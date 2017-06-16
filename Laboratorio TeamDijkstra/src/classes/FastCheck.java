@@ -15,15 +15,7 @@ import java.util.regex.Pattern;
 public class FastCheck {
 
     public static void main(String[] args) {
-        Pattern p = Pattern.compile("[^a-z0-9 ]", Pattern.CASE_INSENSITIVE);
-        Matcher m = p.matcher("I am a string");
-        boolean b = m.find();
-
-        if (b) {
-            System.out.println("There is a special character in my string");
-        }else{
-            System.out.println("There is NO special character in my string");
-        }
+        System.out.println("hola@gmail.com".contains("@"));
     }
 
 }
