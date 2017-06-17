@@ -11,7 +11,7 @@ import java.util.ArrayList;
  *
  * @author john
  */
-public class Point extends Master {
+public class Point implements java.io.Serializable {
 
     private final String code;
     private String address;
@@ -23,19 +23,6 @@ public class Point extends Master {
         this.address = address;
     }
 
-    //CREATE
-    public boolean createProduct(String code, String name, String price, String quantity) {
-        if (validateNonSpecialCharacters(code) && validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
-            products.add(new Product(code, name, Float.parseFloat(price), Integer.parseInt(quantity)));
-            return true;
-        }
-        return false;
-    }
-
-    //READ
-    //UPDATE
-    //DELETE
-    //SEARCH
     //GETTERS SETTERS
     public String getCode() {
         return code;

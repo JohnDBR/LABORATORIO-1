@@ -11,7 +11,7 @@ import java.util.ArrayList;
  *
  * @author john
  */
-public class Client extends Master {
+public class Client implements java.io.Serializable {
 
     private String name;
     private final String cedula;

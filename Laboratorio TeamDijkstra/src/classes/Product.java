@@ -5,11 +5,13 @@
  */
 package classes;
 
+import validations.Validation;
+
 /**
  *
  * @author john
  */
-public class Product extends Master {
+public class Product implements java.io.Serializable {
 
     private final String code;
     private String name;

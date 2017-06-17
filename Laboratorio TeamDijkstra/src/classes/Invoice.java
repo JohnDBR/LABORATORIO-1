@@ -11,7 +11,7 @@ import java.util.ArrayList;
  *
  * @author john
  */
-public class Invoice extends Master {
+public class Invoice implements java.io.Serializable {
 
     private final String code;
     private ArrayList<Product> products;
