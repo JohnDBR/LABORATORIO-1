@@ -10,11 +10,14 @@ import classes.Client;
 import classes.Invoice;
 import classes.Point;
 import classes.Product;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import validations.Validation;
 
 /**
@@ -28,6 +31,10 @@ public class ChainManager extends Validation {
     private ArrayList<Product> productCar = new ArrayList<>();
     private Client buyer;
     private float totalPrice;
+
+    public ChainManager() {
+        read(searchFileToSave());
+    }
 
     //CREATE
     public boolean createChain(String name, String owner) {
@@ -55,7 +62,7 @@ public class ChainManager extends Validation {
     }
 
     public boolean createClient(String name, String cedula, String address, String email, String cellphone) {
-        if (validateWord(name) && validateNumber(cedula) && validateCellphone(cellphone) && validateEmail(email)) {
+        if (validateWord(name) && validateNumber(cedula) && validateCellphone(cellphone) && validateEmailFormat(email)) {
             chain.getClients().add(new Client(name, cedula, address, email, cellphone));
             return true;
         }
@@ -63,7 +70,7 @@ public class ChainManager extends Validation {
     }
 
     public boolean createInvoice(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice)) { //Validate Date format...
+        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 chain.getSales().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
                 return true;
@@ -83,7 +90,7 @@ public class ChainManager extends Validation {
     }
 
     public boolean createInoviceOnPoint(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice)) { //Validate Date format...
+        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 getPoint(pointCode).getSales().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
                 return true;
@@ -93,7 +100,7 @@ public class ChainManager extends Validation {
     }
 
     public boolean createInvoiceOnClient(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice)) { //Validate Date format...
+        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 getClient(cedula).getPurchases().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
                 return true;
@@ -173,8 +180,89 @@ public class ChainManager extends Validation {
     }
 
     //UPDATE
-    
-    
+    public boolean updateProduct(String productCode, String name, String price, String quantity) {
+        if (getProduct(productCode) != null) {
+            if (validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+                getProduct(productCode).setName(name);
+                getProduct(productCode).setPrice(Float.valueOf(price));
+                getProduct(productCode).setQuantity(Integer.valueOf(quantity));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean updatePoint(String pointCode, String address) {
+        if (getPoint(pointCode) != null) {
+            getPoint(pointCode).setAddress(address);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean updateClient(String cedula, String name, String address, String email, String cellphone) {
+        if (getClient(cedula) != null) {
+            if (validateWord(name) && validateCellphone(cellphone) && validateEmailFormat(email)) {
+                getClient(cedula).setName(name);
+                getClient(cedula).setAddress(address);
+                getClient(cedula).setEmail(email);
+                getClient(cedula).setCellphone(cellphone);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean updateInvoice(String invoiceCode, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
+        if (getInvoice(invoiceCode) != null && getPoint(pointCode) != null && getClient(cedula) != null) {
+            if (validateFloat(totalPrice) && validateDateFormat(date)) {
+                getInvoice(invoiceCode).setProducts(products);
+                getInvoice(invoiceCode).setDate(date);
+                getInvoice(invoiceCode).setTotalPrice(Float.parseFloat(totalPrice));
+                getInvoice(invoiceCode).setPoint(getPoint(pointCode));
+                getInvoice(invoiceCode).setBuyer(getClient(cedula));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean updateProductOnPoint(String productCode, String pointCode, String name, String price, String quantity) {
+        if (getProductOnPoint(productCode, pointCode) != null) {
+            if (validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+                getProductOnPoint(productCode, pointCode).setName(name);
+                getProductOnPoint(productCode, pointCode).setPrice(Float.parseFloat(price));
+                getProductOnPoint(productCode, pointCode).setQuantity(Integer.valueOf(quantity));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean updateInvoiceOnPoint(String invoiceCode, String pointCode, ArrayList<Product> products, String date, String totalPrice, String cedula) {
+        if (getInvoiceOnPoint(invoiceCode, pointCode) != null && getClient(cedula) != null) {
+            if (validateFloat(totalPrice) && validateDateFormat(date)) {
+                getInvoiceOnPoint(invoiceCode, pointCode).setProducts(products);
+                getInvoiceOnPoint(invoiceCode, pointCode).setDate(date);
+                getInvoiceOnPoint(invoiceCode, pointCode).setTotalPrice(Float.parseFloat(totalPrice));
+                getInvoiceOnPoint(invoiceCode, pointCode).setBuyer(getClient(cedula));
+            }
+        }
+        return false;
+    }
+
+    public boolean updateInvoiceOnClient(String invoiceCode, String cedula, ArrayList<Product> products, String date, String totalPrice, String pointCode) {
+        if (getInvoiceOnClient(invoiceCode, cedula) != null && getPoint(pointCode) != null) {
+            if (validateFloat(totalPrice) && validateDateFormat(date)) {
+                getInvoiceOnClient(invoiceCode, cedula).setProducts(products);
+                getInvoiceOnClient(invoiceCode, cedula).setDate(date);
+                getInvoiceOnClient(invoiceCode, cedula).setTotalPrice(Float.parseFloat(totalPrice));
+                getInvoiceOnClient(invoiceCode, cedula).setPoint(getPoint(pointCode));
+            }
+        }
+        return false;
+    }
+
     //DELETE 
     public boolean deletePoint(String pointCode) {
         if (getPoint(pointCode) != null) {
@@ -306,10 +394,10 @@ public class ChainManager extends Validation {
     }
 
     //STORER
-    private void save() {
+    private void save(String fileRoute) {
         try {
             // Write to disk with FileOutputStream
-            FileOutputStream f_out = new FileOutputStream("./database/load.data");
+            FileOutputStream f_out = new FileOutputStream(fileRoute);
 
             // Write object with ObjectOutputStream
             ObjectOutputStream obj_out = new ObjectOutputStream(f_out);
@@ -321,10 +409,10 @@ public class ChainManager extends Validation {
         }
     }
 
-    private void read() {
+    private void read(String fileRoute) {
         try {
             // Read from disk using FileInputStream
-            FileInputStream f_in = new FileInputStream("./database/load.data");
+            FileInputStream f_in = new FileInputStream(fileRoute);
 
             // Read object using ObjectInputStream
             ObjectInputStream obj_in = new ObjectInputStream(f_in);
@@ -335,6 +423,43 @@ public class ChainManager extends Validation {
             System.out.println("No ha sido creada");
             chain = null;
         }
+    }
+
+    private String searchFileToSave() {
+        File folder = new File("./database");
+        File[] listOfFiles = folder.listFiles();
+        for (File file : listOfFiles) {
+            //System.out.println(file.getName());
+            String[] nameFields = file.getName().split("\\,");
+            if (nameFields[0].equals("load")) {
+                if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
+                    return file.getName();
+                }
+            }
+        }
+        String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
+        return "./database/load," + date + ",8.data";
+    }
+
+    private String searchFileToLoad(String date) {
+        File folder = new File("./database");
+        File[] listOfFiles = folder.listFiles();
+        String[] dateFields = date.split("\\-");
+        for (File file : listOfFiles) {
+            String[] nameFields = file.getName().split("\\,");
+            if (nameFields[0].equals("load")) {
+                String[] date1 = nameFields[1].split("\\-");
+                String[] date2 = nameFields[2].split("\\-");
+                if (Integer.valueOf(date1[2]) <= Integer.valueOf(dateFields[2]) && Integer.valueOf(date2[2]) >= Integer.valueOf(dateFields[2])) {
+                    if (Integer.valueOf(date1[1]) <= Integer.valueOf(dateFields[1]) && Integer.valueOf(date2[1]) >= Integer.valueOf(dateFields[1])) {
+                        if (Integer.valueOf(date1[0]) <= Integer.valueOf(dateFields[0]) && Integer.valueOf(date2[0]) >= Integer.valueOf(dateFields[0])) {
+                            return file.getName();
+                        }
+                    }
+                }
+            }
+        }
+        return "NONE";
     }
 
 }

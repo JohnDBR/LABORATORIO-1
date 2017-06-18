@@ -72,11 +72,30 @@ public abstract class Validation {
         return false;
     }
 
-    public boolean validateEmail(String string) {
+    public boolean validateEmailFormat(String string) {
         if (string.contains("@")) {
             return true;
         }
         return false;
+    }
+
+    public boolean validateDateFormat(String string) {
+        try {
+            String[] fields = string.split("\\-");
+            if (fields.length != 3) {
+                return false;
+            }
+            if (fields[0].length() != 2  || fields[1].length() != 2 || fields[3].length() != 4) {
+                return false;
+            }
+            if (!validateInt(fields[0]) || !validateInt(fields[1]) || !validateInt(fields[2])) {
+                return false;
+            }
+            
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
     }
 
 }
