@@ -425,11 +425,32 @@ public class ChainManager extends Validation {
         }
     }
 
+    private String createFileToSave() {
+        File folder = new File("./database");
+        File[] listOfFiles = folder.listFiles();
+        String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
+        for (File file : listOfFiles) {
+            String[] nameFields = file.getName().split("\\,");
+            if (nameFields[0].equals("load")) {
+                if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
+                    file.renameTo(new File("./database/" + nameFields[0] + "," + nameFields[1] + "," + date + ".data"));
+                    /*try {
+                        Files.move(file.toPath(), new File(nameFields[0] + "," + nameFields[1] + "," + date + ".data").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    } catch (Exception ex) {
+                        System.out.println("Hola");
+                    }*/
+                    //new File("loc/xyz1.mp3").renameTo(new File("loc/xyz.mp3"));
+                    break;
+                }
+            }
+        }
+        return "./database/load," + date + ",8.data";
+    } //CREAR ARRAYS APARTIR DE STRINGS Y VALIDAR PARA CREAR OTRO FILE
+
     private String searchFileToSave() {
         File folder = new File("./database");
         File[] listOfFiles = folder.listFiles();
         for (File file : listOfFiles) {
-            //System.out.println(file.getName());
             String[] nameFields = file.getName().split("\\,");
             if (nameFields[0].equals("load")) {
                 if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
@@ -448,18 +469,28 @@ public class ChainManager extends Validation {
         for (File file : listOfFiles) {
             String[] nameFields = file.getName().split("\\,");
             if (nameFields[0].equals("load")) {
-                String[] date1 = nameFields[1].split("\\-");
-                String[] date2 = nameFields[2].split("\\-");
-                if (Integer.valueOf(date1[2]) <= Integer.valueOf(dateFields[2]) && Integer.valueOf(date2[2]) >= Integer.valueOf(dateFields[2])) {
-                    if (Integer.valueOf(date1[1]) <= Integer.valueOf(dateFields[1]) && Integer.valueOf(date2[1]) >= Integer.valueOf(dateFields[1])) {
-                        if (Integer.valueOf(date1[0]) <= Integer.valueOf(dateFields[0]) && Integer.valueOf(date2[0]) >= Integer.valueOf(dateFields[0])) {
-                            return file.getName();
-                        }
-                    }
+                if (dateisWithinRange(date, nameFields[1], nameFields[2].substring(0, nameFields[2].length() - 5))) {
+                    return "./database/" + file.getName();
                 }
             }
         }
         return "NONE";
+    }
+
+    private boolean dateisWithinRange(String testDate, String startDate, String endDate) {
+        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy");
+        try {
+            Date dateTest = formatter.parse(testDate);
+            Date dateStart = formatter.parse(startDate);
+            if (endDate.equals("8")) {
+                return !dateTest.before(dateStart);
+            } else {
+                Date dateEnd = formatter.parse(endDate);
+                return !(dateTest.before(dateStart) || dateTest.after(dateEnd)) && !dateTest.equals(dateEnd); //Ideal condition !(testDate.before(startDate) || testDate.after(endDate));
+            }
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
 }
