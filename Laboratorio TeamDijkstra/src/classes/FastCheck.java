@@ -5,10 +5,7 @@
  */
 package classes;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import managers.ChainManager;
 
 /**
  *
@@ -16,29 +13,38 @@ import java.util.Date;
  */
 public class FastCheck {
 
-    private static String createFileToSave() {
-        File folder = new File("./database");
-        File[] listOfFiles = folder.listFiles();
-        String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
-        for (File file : listOfFiles) {
-            String[] nameFields = file.getName().split("\\,");
-            if (nameFields[0].equals("load")) {
-                if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
-                    file.renameTo(new File("./database/" + nameFields[0] + "," + nameFields[1] + "," + date + ".data"));
-                    /*try {
-                        Files.move(file.toPath(), new File(nameFields[0] + "," + nameFields[1] + "," + date + ".data").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    } catch (Exception ex) {
-                        System.out.println("Hola");
-                    }*/
-                    //new File("loc/xyz1.mp3").renameTo(new File("loc/xyz.mp3"));
-                    break;
-                }
-            }
-        }
-        return "./database/load," + date + ",8.data";
-    }
-
     public static void main(String[] args) {
-        System.out.println(createFileToSave());
+        ChainManager cm = new ChainManager();
+        System.out.println("Cadena: ");
+        System.out.println(cm.getChain().getName() + "," + cm.getChain().getOwner());
+        System.out.println("");
+
+        //DEVELOP
+
+        //Products On Chain
+        System.out.println("Productos en la Bodega:");
+        for (Product product : cm.getChain().getProducts()) {
+            System.out.println("Producto " + product.getCode() + ", " + product.getName() + ", " + product.getQuantity() + ", $" + product.getPrice());
+        }
+        System.out.println("");
+
+        //Points
+        System.out.println("Puntos de venta:");
+        for (Point point : cm.getChain().getPoints()) {
+            System.out.println("Punto " + point.getCode() + ", " + point.getAddress());
+            for (Product product : cm.getPoint(point.getCode()).getProducts()) {
+                System.out.println("Producto " + product.getCode() + ", " + product.getName() + ", " + product.getQuantity() + ", $" + product.getPrice());
+            }
+            System.out.println("");
+        }
+        System.out.println("");
+
+        //Clients
+        System.out.println("Clientes: ");
+        for (Client client : cm.getChain().getClients()) {
+            System.out.println("Cliente " + client.getName() + ", " + client.getCode() + ", " + client.getAddress() + ", " + client.getCellphone() + ", " + client.getEmail());
+            //invoices
+            //System.out.println("");
+        }
     }
 }

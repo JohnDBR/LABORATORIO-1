@@ -29,17 +29,128 @@ public class ChainManager extends Validation {
     private Chain chain;
 
     private ArrayList<Product> productCar = new ArrayList<>();
-    private Client buyer;
+    private Client buyer = null;
+    private Point sellingPoint = null;
     private float totalPrice;
 
     public ChainManager() {
         read(searchFileToSave());
     }
 
+    //ESSENTIAL OPERATIONS
+    public boolean startSale(String cedula, String pointCode) {
+        productCar.clear();
+        buyer = getClient(cedula);
+        sellingPoint = getPoint(pointCode);
+        if (buyer != null && sellingPoint != null) {
+            return true;
+        }
+        return false;
+    }
+
+    public void abortSale() {
+        productCar.clear();
+        buyer = null;
+        sellingPoint = null;
+        read(searchFileToSave());
+    }
+
+    public void finishSale() {
+        if (!productCar.isEmpty() && buyer != null && sellingPoint != null) {
+            totalPrice = 0;
+            for (Product product : productCar) {
+                totalPrice = totalPrice + product.getPrice() * product.getQuantity();
+            }
+            String invoiceCode = generateInvoiceCode();
+            String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
+            createInvoice(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            createInvoiceOnPoint(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            createInvoiceOnClient(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            save(searchFileToSave());
+        }
+    }
+
+    public boolean passProduct(String productCode, String quantity) {
+        Product product = getProductOnPoint(productCode, sellingPoint.getCode());
+        if (product != null && validateInt(quantity)) {
+            int amount = Integer.valueOf(quantity);
+            int inventory = product.getQuantity() - amount;
+            if (inventory >= 0 && amount > 0) {
+                productCar.add(new Product(productCode, product.getName(), product.getPrice(), amount));
+                updateProductOnPoint(productCode, sellingPoint.getCode(), product.getName(), Float.toString(product.getPrice()), "" + inventory);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean addAmountOfProduct(String productCode, String toPlus) {
+        Product product = getProduct(productCode);
+        if (product != null && validateInt(toPlus)) {
+            int amount = product.getQuantity() + Integer.valueOf(toPlus);
+            updateProduct(productCode, product.getName(), Float.toString(product.getPrice()), amount + "");
+            save(searchFileToSave());
+            return true;
+        }
+        return false;
+    }
+
+    public boolean addAmountOfProductOnPoint(String productCode, String pointCode, String toPlus) {
+        Product product = getProductOnPoint(productCode, pointCode);
+        if (product != null && validateInt(toPlus)) {
+            int amount = product.getQuantity() + Integer.valueOf(toPlus);
+            updateProductOnPoint(productCode, pointCode, product.getName(), Float.toString(product.getPrice()), amount + "");
+            save(searchFileToSave());
+            return true;
+        }
+        return false;
+    }
+
+    public void modifyProduct(String productCode, String name, String price) {
+        boolean update = false;
+        if (getProduct(productCode) != null || chain.getProductRecord().contains(productCode)) {
+            try {
+                update = updateProduct(productCode, name, price, Integer.toString(getProduct(productCode).getQuantity()));
+            } catch (Exception e) {
+            }
+            for (int i = 0; i < chain.getPoints().size(); i++) {
+                try {
+                    if (updateProductOnPoint(productCode, chain.getPoints().get(i).getCode(), name, price, Integer.toString(getProductOnPoint(productCode, "" + i).getQuantity()))) {
+                        update = true;
+                    }
+                } catch (Exception e) {
+                }
+            }
+        }
+        if (update) {
+            save(createFileToSave());
+        } else {
+            read(searchFileToSave());
+        }
+    }
+
+    public void eraseProduct(String productCode) {
+        boolean delete = false;
+        if (getProduct(productCode) != null || chain.getProductRecord().contains(productCode)) {
+            delete = deleteProduct(productCode);
+            for (int i = 0; i < chain.getPoints().size(); i++) {
+                if (deleteProductOnPoint(productCode, chain.getPoints().get(i).getCode())) {
+                    delete = true;
+                }
+            }
+        }
+        if (delete) {
+            save(createFileToSave());
+        } else {
+            read(searchFileToSave());
+        }
+    }
+
     //CREATE
     public boolean createChain(String name, String owner) {
-        if (validateNonSpecialCharacters(name) && validateNonSpecialCharacters(owner)) {
+        if (!validateNonSpecialCharacters(name) && !validateNonSpecialCharacters(owner)) {
             chain = new Chain(name, owner);
+            save(searchFileToSave());
             return true;
         }
         return false;
@@ -48,14 +159,17 @@ public class ChainManager extends Validation {
     public boolean createPoint(String address, String code) {
         if (validateNumber(code)) {
             chain.getPoints().add(new Point(address, code));
+            save(searchFileToSave());
             return true;
         }
         return false;
     }
 
     public boolean createProduct(String code, String name, String price, String quantity) {
-        if (validateNonSpecialCharacters(code) && validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+        if (!validateNonSpecialCharacters(code) && !validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
             chain.getProducts().add(new Product(code, name, Float.parseFloat(price), Integer.parseInt(quantity)));
+            chain.getProductRecord().add(code);
+            save(searchFileToSave());
             return true;
         }
         return false;
@@ -63,16 +177,27 @@ public class ChainManager extends Validation {
 
     public boolean createClient(String name, String cedula, String address, String email, String cellphone) {
         if (validateWord(name) && validateNumber(cedula) && validateCellphone(cellphone) && validateEmailFormat(email)) {
-            chain.getClients().add(new Client(name, cedula, address, email, cellphone));
-            return true;
+            boolean repeatedCedula = false;
+            for (Client client : chain.getClients()) {
+                if (cedula.equals(client.getCode())) {
+                    repeatedCedula = true;
+                    break;
+                }
+            }
+            if (!repeatedCedula) {
+                chain.getClients().add(new Client(name, cedula, address, email, cellphone));
+                save(searchFileToSave());
+                return true;
+            }
         }
         return false;
     }
 
     public boolean createInvoice(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
+        if (!validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 chain.getSales().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
+                save(searchFileToSave());
                 return true;
             }
         }
@@ -80,19 +205,22 @@ public class ChainManager extends Validation {
     }
 
     public boolean createProductOnPoint(String pointCode, String code, String name, String price, String quantity) {
-        if (validateNonSpecialCharacters(code) && validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+        if (!validateNonSpecialCharacters(code) && !validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
             if (getPoint(pointCode) != null) {
                 getPoint(pointCode).getProducts().add(new Product(code, name, Float.valueOf(price), Integer.valueOf(quantity)));
+                chain.getProductRecord().add(code);
+                save(searchFileToSave());
                 return true;
             }
         }
         return false;
     }
 
-    public boolean createInoviceOnPoint(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
+    public boolean createInvoiceOnPoint(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
+        if (!validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 getPoint(pointCode).getSales().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
+                save(searchFileToSave());
                 return true;
             }
         }
@@ -100,9 +228,10 @@ public class ChainManager extends Validation {
     }
 
     public boolean createInvoiceOnClient(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
-        if (validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
+        if (!validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 getClient(cedula).getPurchases().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
+                save(searchFileToSave());
                 return true;
             }
         }
@@ -112,7 +241,7 @@ public class ChainManager extends Validation {
     //READ
     public Product getProduct(String code) {
         for (int i = 0; i < chain.getProducts().size(); i++) {
-            if (chain.getProducts().get(i).getCode() == code) {
+            if (chain.getProducts().get(i).getCode().equals(code)) {
                 return chain.getProducts().get(i);
             }
         }
@@ -121,7 +250,7 @@ public class ChainManager extends Validation {
 
     public Client getClient(String cedula) {
         for (int i = 0; i < chain.getClients().size(); i++) {
-            if (chain.getClients().get(i).getCode() == cedula) {
+            if (chain.getClients().get(i).getCode().equals(cedula)) {
                 return chain.getClients().get(i);
             }
         }
@@ -130,7 +259,7 @@ public class ChainManager extends Validation {
 
     public Point getPoint(String code) {
         for (int i = 0; i < chain.getPoints().size(); i++) {
-            if (chain.getPoints().get(i).getCode() == code) {
+            if (chain.getPoints().get(i).getCode().equals(code)) {
                 return chain.getPoints().get(i);
             }
         }
@@ -139,7 +268,7 @@ public class ChainManager extends Validation {
 
     public Invoice getInvoice(String code) {
         for (int i = 0; i < chain.getSales().size(); i++) {
-            if (chain.getSales().get(i).getCode() == code) {
+            if (chain.getSales().get(i).getCode().equals(code)) {
                 return chain.getSales().get(i);
             }
         }
@@ -149,7 +278,7 @@ public class ChainManager extends Validation {
     public Product getProductOnPoint(String code, String pointCode) {
         if (getPoint(pointCode) != null) {
             for (int i = 0; i < getPoint(pointCode).getProducts().size(); i++) {
-                if (getPoint(pointCode).getProducts().get(i).getCode() == code) {
+                if (getPoint(pointCode).getProducts().get(i).getCode().equals(code)) {
                     return getPoint(pointCode).getProducts().get(i);
                 }
             }
@@ -160,7 +289,7 @@ public class ChainManager extends Validation {
     public Invoice getInvoiceOnPoint(String code, String pointCode) {
         if (getPoint(pointCode) != null) {
             for (int i = 0; i < getPoint(pointCode).getSales().size(); i++) {
-                if (getPoint(pointCode).getSales().get(i).getCode() == code) {
+                if (getPoint(pointCode).getSales().get(i).getCode().equals(code)) {
                     return getPoint(pointCode).getSales().get(i);
                 }
             }
@@ -171,7 +300,7 @@ public class ChainManager extends Validation {
     public Invoice getInvoiceOnClient(String code, String cedula) {
         if (getClient(cedula) != null) {
             for (int i = 0; i < getClient(cedula).getPurchases().size(); i++) {
-                if (getClient(cedula).getPurchases().get(i).getCode() == code) {
+                if (getClient(cedula).getPurchases().get(i).getCode().equals(code)) {
                     return getClient(cedula).getPurchases().get(i);
                 }
             }
@@ -182,7 +311,7 @@ public class ChainManager extends Validation {
     //UPDATE
     public boolean updateProduct(String productCode, String name, String price, String quantity) {
         if (getProduct(productCode) != null) {
-            if (validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+            if (!validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
                 getProduct(productCode).setName(name);
                 getProduct(productCode).setPrice(Float.valueOf(price));
                 getProduct(productCode).setQuantity(Integer.valueOf(quantity));
@@ -195,6 +324,7 @@ public class ChainManager extends Validation {
     public boolean updatePoint(String pointCode, String address) {
         if (getPoint(pointCode) != null) {
             getPoint(pointCode).setAddress(address);
+            save(createFileToSave());
             return true;
         }
         return false;
@@ -207,6 +337,7 @@ public class ChainManager extends Validation {
                 getClient(cedula).setAddress(address);
                 getClient(cedula).setEmail(email);
                 getClient(cedula).setCellphone(cellphone);
+                save(createFileToSave());
                 return true;
             }
         }
@@ -229,7 +360,7 @@ public class ChainManager extends Validation {
 
     public boolean updateProductOnPoint(String productCode, String pointCode, String name, String price, String quantity) {
         if (getProductOnPoint(productCode, pointCode) != null) {
-            if (validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
+            if (!validateNonSpecialCharacters(name) && validateFloat(price) && validateInt(quantity)) {
                 getProductOnPoint(productCode, pointCode).setName(name);
                 getProductOnPoint(productCode, pointCode).setPrice(Float.parseFloat(price));
                 getProductOnPoint(productCode, pointCode).setQuantity(Integer.valueOf(quantity));
@@ -267,6 +398,7 @@ public class ChainManager extends Validation {
     public boolean deletePoint(String pointCode) {
         if (getPoint(pointCode) != null) {
             chain.getPoints().remove(getPoint(pointCode));
+            save(createFileToSave());
             return true;
         }
         return false;
@@ -275,6 +407,7 @@ public class ChainManager extends Validation {
     public boolean deleteProduct(String productCode) {
         if (getProduct(productCode) != null) {
             chain.getProducts().remove(getProduct(productCode));
+            chain.getProductRecord().remove(productCode);
             return true;
         }
         return false;
@@ -283,6 +416,7 @@ public class ChainManager extends Validation {
     public boolean deleteClient(String cedula) {
         if (getClient(cedula) != null) {
             chain.getClients().remove(getClient(cedula));
+            save(createFileToSave());
             return true;
         }
         return false;
@@ -291,6 +425,7 @@ public class ChainManager extends Validation {
     public boolean deleteInvoice(String invoiceCode) {
         if (getInvoice(invoiceCode) != null) {
             chain.getSales().remove(getInvoice(invoiceCode));
+            save(searchFileToSave());
             return true;
         }
         return false;
@@ -299,6 +434,7 @@ public class ChainManager extends Validation {
     public boolean deleteProductOnPoint(String productCode, String pointCode) {
         if (getProductOnPoint(productCode, pointCode) != null && getPoint(pointCode) != null) {
             getPoint(pointCode).getProducts().remove(getProductOnPoint(productCode, pointCode));
+            chain.getProductRecord().remove(productCode);
             return true;
         }
         return false;
@@ -307,6 +443,7 @@ public class ChainManager extends Validation {
     public boolean deleteInvoiceOnPoint(String invoiceCode, String pointCode) {
         if (getInvoice(invoiceCode) != null && getPoint(pointCode) != null) {
             getPoint(pointCode).getSales().remove(getInvoice(invoiceCode));
+            save(searchFileToSave());
             return true;
         }
         return false;
@@ -315,6 +452,7 @@ public class ChainManager extends Validation {
     public boolean deleteInvoiceOnClient(String invoiceCode, String cedula) {
         if (getInvoiceOnClient(invoiceCode, cedula) != null && getClient(cedula) != null) {
             getClient(cedula).getPurchases().remove(getInvoiceOnClient(invoiceCode, cedula));
+            save(searchFileToSave());
             return true;
         }
         return false;
@@ -355,61 +493,94 @@ public class ChainManager extends Validation {
                 }
             }
             chain.getProducts().clear();
+            save(searchFileToSave());
         }
     }
 
-    public void sortProducts(Product product) {
-        int n;
-        if ((n = chain.getPoints().size()) > 0 && product.getQuantity() > 0) {
-            if (n == 1) {
-                chain.getPoints().get(0).setProducts(chain.getProducts());
-            } else {
-                ArrayList<Integer> delivery = new ArrayList<>();
-                for (Point point : chain.getPoints()) {
-                    delivery.add(0);
-                }
-
-                int quantity = product.getQuantity();
-                int cont = 1;
-                while (quantity != 0) {
-                    for (int j = 0; j < delivery.size(); j++) {
-                        if (quantity > 0) {
-                            delivery.set(j, cont);
-                            quantity--;
-                        } else {
-                            break;
-                        }
+    public void sortProducts(String productCode) {
+        Product product = getProduct(productCode);
+        if (product != null) {
+            int n;
+            if ((n = chain.getPoints().size()) > 0 && product.getQuantity() > 0) {
+                if (n == 1) {
+                    chain.getPoints().get(0).setProducts(chain.getProducts());
+                } else {
+                    ArrayList<Integer> delivery = new ArrayList<>();
+                    for (Point point : chain.getPoints()) {
+                        delivery.add(0);
                     }
-                    cont++;
+
+                    int quantity = product.getQuantity();
+                    int cont = 1;
+                    while (quantity != 0) {
+                        for (int j = 0; j < delivery.size(); j++) {
+                            if (quantity > 0) {
+                                delivery.set(j, cont);
+                                quantity--;
+                            } else {
+                                break;
+                            }
+                        }
+                        cont++;
+                    }
+                    int i = 0;
+                    for (Point point : chain.getPoints()) {
+                        point.getProducts().add(new Product(product.getCode(), product.getName(), product.getPrice(), delivery.get(i)));
+                        delivery.set(i, 0);
+                        i++;
+                    }
                 }
-                int i = 0;
-                for (Point point : chain.getPoints()) {
-                    point.getProducts().add(new Product(product.getCode(), product.getName(), product.getPrice(), delivery.get(i)));
-                    delivery.set(i, 0);
-                    i++;
-                }
+                chain.getProducts().remove(product);
+                save(searchFileToSave());
             }
-            chain.getProducts().remove(product);
         }
+    }
+
+    public String generateInvoiceCode() {
+        if (!chain.getSales().isEmpty()) {
+            int lastInvoiceCode = Integer.valueOf(chain.getSales().get(chain.getSales().size() - 1).getCode()) + 1;
+            return Integer.toString(lastInvoiceCode);
+        }
+        return "0";
+    }
+
+    public String generatePointCode() {
+        if (!chain.getPoints().isEmpty()) {
+            int lastPointCode = Integer.valueOf(chain.getPoints().get(chain.getPoints().size() - 1).getCode()) + 1;
+            return Integer.toString(lastPointCode);
+        }
+        return "0";
+    }
+
+    public String generateProductCode() {
+        if (!chain.getProductRecord().isEmpty()) {
+            int lastProductCode = Integer.valueOf(chain.getProductRecord().get(chain.getProductRecord().size() - 1)) + 1;
+            return Integer.toString(lastProductCode);
+        }
+        return "0";
     }
 
     //STORER
-    private void save(String fileRoute) {
-        try {
-            // Write to disk with FileOutputStream
-            FileOutputStream f_out = new FileOutputStream(fileRoute);
+    public void save(String fileRoute) {
+        if (fileRoute.equals("ABORT")) {
+            read(searchFileToSave());
+        } else {
+            try {
+                // Write to disk with FileOutputStream
+                FileOutputStream f_out = new FileOutputStream(fileRoute);
 
-            // Write object with ObjectOutputStream
-            ObjectOutputStream obj_out = new ObjectOutputStream(f_out);
+                // Write object with ObjectOutputStream
+                ObjectOutputStream obj_out = new ObjectOutputStream(f_out);
 
-            // Write object out to disk
-            obj_out.writeObject(chain);
-        } catch (Exception ex) {
-            System.out.println("Datos  no guardados!");
+                // Write object out to disk
+                obj_out.writeObject(chain);
+            } catch (Exception ex) {
+                System.out.println("Datos  no guardados!");
+            }
         }
     }
 
-    private void read(String fileRoute) {
+    public void read(String fileRoute) {
         try {
             // Read from disk using FileInputStream
             FileInputStream f_in = new FileInputStream(fileRoute);
@@ -420,12 +591,12 @@ public class ChainManager extends Validation {
             // Read an object
             chain = (Chain) obj_in.readObject();
         } catch (Exception ex) {
-            System.out.println("No ha sido creada");
+            System.out.println("No ha sido creado el archivo a cargar");
             chain = null;
         }
     }
 
-    private String createFileToSave() {
+    public String createFileToSave() {
         File folder = new File("./database");
         File[] listOfFiles = folder.listFiles();
         String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
@@ -433,28 +604,35 @@ public class ChainManager extends Validation {
             String[] nameFields = file.getName().split("\\,");
             if (nameFields[0].equals("load")) {
                 if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
-                    file.renameTo(new File("./database/" + nameFields[0] + "," + nameFields[1] + "," + date + ".data"));
-                    /*try {
-                        Files.move(file.toPath(), new File(nameFields[0] + "," + nameFields[1] + "," + date + ".data").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    } catch (Exception ex) {
-                        System.out.println("Hola");
-                    }*/
-                    //new File("loc/xyz1.mp3").renameTo(new File("loc/xyz.mp3"));
-                    break;
+                    if (!nameFields[1].equals(date)) {
+                        boolean success = false;
+                        do {
+                            success = file.renameTo(new File("./database/" + nameFields[0] + "," + nameFields[1] + "," + date + ".data")); //Problem
+                        } while (!success);
+                        //try {
+                        //   Files.move(file.toPath(), new File("./database/" + nameFields[0] + "," + nameFields[1] + "," + date + ".data").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        //} catch (Exception ex) {
+                        //    System.out.println("No se pudo crear el nuevo archivo");
+                        //}
+                        //new File("loc/xyz1.mp3").renameTo(new File("loc/xyz.mp3"));
+                        break;
+                    } else {
+                        return "ABORT";
+                    }
                 }
             }
         }
         return "./database/load," + date + ",8.data";
-    } //CREAR ARRAYS APARTIR DE STRINGS Y VALIDAR PARA CREAR OTRO FILE
+    }
 
-    private String searchFileToSave() {
+    public String searchFileToSave() {
         File folder = new File("./database");
         File[] listOfFiles = folder.listFiles();
         for (File file : listOfFiles) {
             String[] nameFields = file.getName().split("\\,");
             if (nameFields[0].equals("load")) {
                 if (nameFields[2].contains("8.") && nameFields[2].length() < 7) {
-                    return file.getName();
+                    return "./database/" + file.getName();
                 }
             }
         }
@@ -462,7 +640,7 @@ public class ChainManager extends Validation {
         return "./database/load," + date + ",8.data";
     }
 
-    private String searchFileToLoad(String date) {
+    public String searchFileToLoad(String date) {
         File folder = new File("./database");
         File[] listOfFiles = folder.listFiles();
         String[] dateFields = date.split("\\-");
@@ -477,7 +655,7 @@ public class ChainManager extends Validation {
         return "NONE";
     }
 
-    private boolean dateisWithinRange(String testDate, String startDate, String endDate) {
+    public boolean dateisWithinRange(String testDate, String startDate, String endDate) {
         SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy");
         try {
             Date dateTest = formatter.parse(testDate);
@@ -491,6 +669,15 @@ public class ChainManager extends Validation {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    //GETTERS SETTERS
+    public Chain getChain() {
+        return chain;
+    }
+
+    public void setChain(Chain chain) {
+        this.chain = chain;
     }
 
 }

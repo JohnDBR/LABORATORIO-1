@@ -21,6 +21,8 @@ public class Chain implements java.io.Serializable {
     private ArrayList<Client> clients = new ArrayList<>();
     private ArrayList<Invoice> sales = new ArrayList<>();
 
+    private ArrayList<String> productRecord = new ArrayList<>();
+
     public Chain(String name, String owner) {
         this.name = name;
         this.owner = owner;
@@ -75,4 +77,11 @@ public class Chain implements java.io.Serializable {
         this.sales = sales;
     }
 
+    public ArrayList<String> getProductRecord() {
+        return productRecord;
+    }
+
+    public void setProductRecord(ArrayList<String> productRecord) {
+        this.productRecord = productRecord;
+    }
 }
