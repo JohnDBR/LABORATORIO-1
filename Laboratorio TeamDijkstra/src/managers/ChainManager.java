@@ -63,10 +63,14 @@ public class ChainManager extends Validation {
             }
             String invoiceCode = generateInvoiceCode();
             String date = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
-            createInvoice(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
-            createInvoiceOnPoint(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
-            createInvoiceOnClient(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
-            save(searchFileToSave());
+            Boolean a = createInvoice(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            Boolean b = createInvoiceOnPoint(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            Boolean c = createInvoiceOnClient(invoiceCode, productCar, date, Float.toString(totalPrice), sellingPoint.getCode(), buyer.getCode());
+            if (a && b && c) {
+                save(searchFileToSave());
+            } else {
+                System.out.println("Error para crear las facturas!");
+            }
         }
     }
 
@@ -194,6 +198,7 @@ public class ChainManager extends Validation {
     }
 
     public boolean createInvoice(String code, ArrayList<Product> products, String date, String totalPrice, String pointCode, String cedula) {
+        //System.out.println(validateDateFormat(date) + ", " + date);
         if (!validateNonSpecialCharacters(code) && validateNumber(cedula) && validateFloat(totalPrice) && validateDateFormat(date)) {
             if (getPoint(pointCode) != null) {
                 chain.getSales().add(new Invoice(code, products, date, Float.valueOf(totalPrice), getPoint(pointCode), getClient(cedula)));
